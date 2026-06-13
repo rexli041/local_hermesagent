@@ -373,68 +373,89 @@ define(['jquery', 'core/ajax', 'core/str'], function($, ajax, Str) {
     /**
      * Simple markdown renderer
      */
+    /**
+     * Convert markdown syntax to HTML.
+     * Input must be HTML-escaped (except for markdown syntax chars).
+     */
+    var convertInlineMd = function(s) {
+        // Headers (must be at start of line)
+        s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+        s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+        s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+        
+        // Bold
+        s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
+        
+        // Italic (after bold, so **bold** is not affected)
+        s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        s = s.replace(/(?<!\w)_(.+?)_(?!\w)/g, '<em>$1</em>');
+        
+        // Links [text](url)
+        s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+        
+        // Unordered lists (- item or * item at start of line)
+        s = s.replace(/^\s*[-*] (.+)$/gm, '<li>$1</li>');
+        s = s.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+        
+        // Horizontal rules
+        s = s.replace(/^---+$/gm, '<hr>');
+        
+        // Newlines to <br>
+        s = s.replace(/\n\n/g, '<br><br>');
+        s = s.replace(/\n/g, '<br>');
+        
+        return s;
+    };
+    
     var renderMarkdown = function(text) {
         if (!text) return '';
         text = text.trim();
         if (!text) return '';
         
-        // First, extract and protect code blocks from other processing
-        var codeBlocks = [];
-        text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, function(match, lang, code) {
-            var idx = codeBlocks.length;
-            var block = '<pre><code class="language-' + escapeHtml(lang || 'text') + '">' + escapeHtml(code.trim()) + '</code></pre>';
-            codeBlocks.push(block);
-            return '%%CODEBLOCK_' + idx + '%%';
-        });
+        // Split text by fenced code blocks (```), process each segment
+        var fencedRe = /```(\w*)\n?([\s\S]*?)```/g;
+        var segments = [];
+        var lastIndex = 0;
+        var m;
+        while ((m = fencedRe.exec(text)) !== null) {
+            if (m.index > lastIndex) {
+                segments.push(processInlineSegments(text.substring(lastIndex, m.index)));
+            }
+            var lang = m[1] || 'text';
+            var code = m[2].trim();
+            segments.push('<pre><code class="language-' + escapeHtml(lang) + '">' + escapeHtml(code) + '</code></pre>');
+            lastIndex = m.index + m[0].length;
+        }
+        if (lastIndex < text.length) {
+            segments.push(processInlineSegments(text.substring(lastIndex)));
+        }
         
-        // Extract and protect inline code
-        var inlineCode = [];
-        text = text.replace(/`([^`]+)`/g, function(match, code) {
-            var idx = inlineCode.length;
-            inlineCode.push('<code>' + escapeHtml(code) + '</code>');
-            return '%%INLINE_' + idx + '%%';
-        });
-        
-        // HTML-escape the remaining text
-        text = escapeHtml(text);
-        
-        // Convert markdown syntax (after escaping, so <, >, & are safe)
-        // Headers
-        text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-        text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-        text = text.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-        
-        // Bold (use word boundaries to avoid matching inside code)
-        text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-        text = text.replace(/__(.+?)__/g, '<strong>$1</strong>');
-        
-        // Italic
-        text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
-        text = text.replace(/_(.+?)_/g, '<em>$1</em>');
-        
-        // Links [text](url)
-        text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-        
-        // Unordered lists (- item or * item)
-        text = text.replace(/^\s*[-*] (.+)$/gm, '<li>$1</li>');
-        text = text.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
-        
-        // Horizontal rules
-        text = text.replace(/^---+$/gm, '<hr>');
-        
-        // Convert remaining newlines to <br> (but not inside protected blocks)
-        text = text.replace(/\n\n/g, '<br><br>');
-        text = text.replace(/\n/g, '<br>');
-        
-        // Restore code blocks
-        text = text.replace(/%%CODEBLOCK_(\d+)%%/g, function(match, idx) {
-            return codeBlocks[parseInt(idx)];
-        });
-        text = text.replace(/%%INLINE_(\d+)%%/g, function(match, idx) {
-            return inlineCode[parseInt(idx)];
-        });
-        
-        return text;
+        return segments.join('');
+    };
+    
+    /**
+     * Process a text segment that may contain inline code (`) and markdown.
+     * Splits by inline code first, then converts markdown on the non-code parts.
+     */
+    var processInlineSegments = function(text) {
+        var inlineRe = /`([^`]+)`/g;
+        var parts = [];
+        var lastIdx = 0;
+        var m;
+        while ((m = inlineRe.exec(text)) !== null) {
+            if (m.index > lastIdx) {
+                var before = escapeHtml(text.substring(lastIdx, m.index));
+                parts.push(convertInlineMd(before));
+            }
+            parts.push('<code>' + escapeHtml(m[1]) + '</code>');
+            lastIdx = m.index + m[0].length;
+        }
+        if (lastIdx < text.length) {
+            var remaining = escapeHtml(text.substring(lastIdx));
+            parts.push(convertInlineMd(remaining));
+        }
+        return parts.join('');
     };
 
     /**
