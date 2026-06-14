@@ -207,7 +207,6 @@ function api_stream_response(): void {
                     
                     if (isset($json['delta'])) {
                         $assistant_content .= $json['delta'];
-                        error_log('[Hermes] SSE delta len=' . strlen($json['delta']) . ' full len=' . strlen($assistant_content) . ' full_preview=' . substr(strip_tags($assistant_content), 0, 80));
                         echo "event: message\ndata: " . json_encode(['delta' => $json['delta'], 'full' => $assistant_content]) . "\n\n";
                         flush();
                     }

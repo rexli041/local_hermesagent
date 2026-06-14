@@ -540,10 +540,7 @@ define(['jquery', 'core/ajax', 'core/str', 'filter_mathjaxloader/loader'], funct
             }
             searchStart = closeIdx + CLOSE.length;
         }
-        // NOTE: do NOT append text.substring(searchStart) here —
-        // all exit paths (break/continue/normal) already handle it:
-        // - break at line 526: already appends rest on line 525
-        // - normal exit: searchStart == text.length, substring returns empty
+
         result = protectBareBrackets(result);
         result = convertLegacyDollars(result);
         return result;
@@ -629,13 +626,9 @@ define(['jquery', 'core/ajax', 'core/str', 'filter_mathjaxloader/loader'], funct
         text = text.replace(/<\s*(script|iframe|object|embed|form|link|meta|base)[^>]*>/gi, '');
         text = text.replace(/<\s*\/?(script|iframe|object|embed|form|link|meta|base)[^>]*\s*>/gi, '');
         text = protectMathDelimiters(text);
-        console.log('[Hermes] renderMarkdown: after protect len=' + text.length + ' preview=' + text.substring(0, 100));
         return loadMarked().then(function(m) {
-            console.log('[Hermes] renderMarkdown: before parse len=' + text.length + ' preview=' + text.substring(0, 100));
             var html = m.parse(text);
-            console.log('[Hermes] renderMarkdown: m.parse output len=' + html.length + ' preview=' + html.substring(0, 100));
             html = unescapeMathDelimiters(html);
-            console.log('[Hermes] renderMarkdown: after unescape len=' + html.length + ' preview=' + html.substring(0, 100));
             return html;
         }).catch(function(err) {
             console.error('[Hermes] Failed to parse markdown:', err);
@@ -647,9 +640,7 @@ define(['jquery', 'core/ajax', 'core/str', 'filter_mathjaxloader/loader'], funct
      * Set content of an element with markdown + math rendering
      */
     var setMarkdownContent = function(element, text) {
-        console.log('[Hermes] setMarkdownContent: input len=' + text.length + ' preview=' + text.substring(0, 80));
         renderMarkdown(text).then(function(html) {
-            console.log('[Hermes] setMarkdownContent: html len=' + html.length + ' preview=' + html.substring(0, 100));
             element.html(html);
             typesetMath(element[0]);
         });
