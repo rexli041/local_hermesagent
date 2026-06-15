@@ -16,7 +16,7 @@ import asyncio
 import subprocess
 from typing import Dict, Optional
 
-HERMES_HOME = os.environ.get("HERMES_HOME", "${HERMES_HOME} (default: /var/www/moodledata/.hermes)")
+HERMES_HOME = os.environ.get("HERMES_HOME", "/var/www/moodledata/.hermes")
 PORT = int(os.environ.get("BRIDGE_PORT", "9118"))
 MOODLE_DB_HOST = os.environ.get("MOODLE_DB_HOST", "mariadb")
 MOODLE_DB_NAME = os.environ.get("MOODLE_DB_NAME", "moodle")

@@ -238,7 +238,8 @@ define(['jquery', 'core/ajax', 'core/str', 'filter_mathjaxloader/loader'], funct
 
         eventSource.addEventListener('tool_call', function(e) {
             var data = JSON.parse(e.data);
-            showToolModal(data);
+            // Show tool call as collapsible section in chat
+            addToolCallToChat(data.tool_call);
         });
 
         eventSource.addEventListener('error', function(e) {
@@ -298,7 +299,78 @@ define(['jquery', 'core/ajax', 'core/str', 'filter_mathjaxloader/loader'], funct
     };
 
     /**
-     * Show tool confirmation modal
+     * Add tool call result to chat as a collapsible section
+     */
+    var addToolCallToChat = function(tc) {
+        var msgId = 'hermes-tool-call-' + (msgCounter);
+        var resultText = '';
+        if (tc.result) {
+            if (typeof tc.result === 'object') {
+                // Check if it's a DB query result with rows
+                if (tc.result.rows) {
+                    resultText = buildTableMarkdown(tc.result);
+                } else {
+                    resultText = JSON.stringify(tc.result, null, 2);
+                }
+            } else {
+                resultText = String(tc.result);
+            }
+        }
+
+        var html = '<div class="hermes-message hermes-assistant-message hermes-tool-call" id="' + msgId + '">';
+        html += '<div class="hermes-avatar hermes-assistant-avatar">H</div>';
+        html += '<div class="hermes-bubble hermes-assistant-bubble hermes-tool-bubble">';
+        html += '<details class="hermes-tool-details">';
+        html += '<summary class="hermes-tool-summary">';
+        html += '<span class="hermes-tool-icon">&#9881;</span> ';
+        html += escapeHtml(tc.name);
+        html += ' <span class="hermes-tool-status">';
+        if (tc.status === 'completed') {
+            html += '<span class="text-success">completed</span>';
+        } else {
+            html += '<span class="text-warning">executing</span>';
+        }
+        html += '</span>';
+        html += '</summary>';
+        html += '<div class="hermes-tool-input">';
+        html += '<strong>Input:</strong> ';
+        html += '<code>' + escapeHtml(JSON.stringify(tc.input, null, 2)) + '</code>';
+        html += '</div>';
+        if (tc.result) {
+            html += '<div class="hermes-tool-result">';
+            html += '<strong>Result:</strong> ';
+            html += '<pre>' + escapeHtml(resultText) + '</pre>';
+            html += '</div>';
+        }
+        html += '</details>';
+        html += '</div></div>';
+
+        $('#hermes-chat-area').append(html);
+        scrollToEnd();
+    };
+
+    /**
+     * Build a simple markdown table from DB query result
+     */
+    var buildTableMarkdown = function(result) {
+        if (!result.rows || result.rows.length === 0) {
+            return '0 rows returned';
+        }
+        var cols = result.columns || [];
+        if (cols.length === 0) return JSON.stringify(result);
+        var md = '| ' + cols.join(' | ') + ' |\n| ' + cols.map(function() { return '---'; }).join(' | ') + ' |\n';
+        for (var i = 0; i < result.rows.length; i++) {
+            var cells = cols.map(function(c) {
+                var v = result.rows[i][c];
+                return v === null ? 'NULL' : String(v);
+            });
+            md += '| ' + cells.join(' | ') + ' |\n';
+        }
+        return md;
+    };
+
+    /**
+     * Show tool confirmation modal (deprecated - kept for compatibility)
      */
     var showToolModal = function(toolCall) {
         var html = '<h4>' + escapeHtml(toolCall.name) + '</h4>';

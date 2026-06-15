@@ -238,7 +238,8 @@ define(['jquery', 'core/ajax', 'core/str', 'filter_mathjaxloader/loader'], funct
 
         eventSource.addEventListener('tool_call', function(e) {
             var data = JSON.parse(e.data);
-            showToolModal(data);
+            // Show tool call as collapsible section in chat
+            addToolCallToChat(data.tool_call);
         });
 
         eventSource.addEventListener('error', function(e) {
@@ -298,7 +299,79 @@ define(['jquery', 'core/ajax', 'core/str', 'filter_mathjaxloader/loader'], funct
     };
 
     /**
-     * Show tool confirmation modal
+     * Add tool call result to chat as a collapsible section
+     */
+    var addToolCallToChat = function(tc) {
+        var msgId = 'hermes-tool-call-' + (msgCounter);
+        var resultText = '';
+        // Guard: result must be a real object with actual data, not an error object
+        var hasResult = tc.result && typeof tc.result === 'object' && !tc.result.error && Object.keys(tc.result).length > 0;
+        if (hasResult) {
+            if (tc.result.rows) {
+                resultText = buildTableMarkdown(tc.result);
+            } else {
+                resultText = JSON.stringify(tc.result, null, 2);
+            }
+        }
+
+        var html = '<div class="hermes-message hermes-assistant-message hermes-tool-call" id="' + msgId + '">';
+        html += '<div class="hermes-avatar hermes-assistant-avatar">H</div>';
+        html += '<div class="hermes-bubble hermes-assistant-bubble hermes-tool-bubble">';
+        html += '<details class="hermes-tool-details">';
+        html += '<summary class="hermes-tool-summary">';
+        html += '<span class="hermes-tool-icon">&#9881;</span> ';
+        html += escapeHtml(tc.name);
+        html += ' <span class="hermes-tool-status">';
+        if (tc.status === 'completed') {
+            html += '<span class="text-success">completed</span>';
+        } else {
+            html += '<span class="text-warning">executing</span>';
+        }
+        html += '</span>';
+        html += '</summary>';
+        html += '<div class="hermes-tool-input">';
+        html += '<strong>Input:</strong> ';
+        html += '<code>' + escapeHtml(JSON.stringify(tc.input, null, 2)) + '</code>';
+        html += '</div>';
+        if (hasResult) {
+            html += '<div class="hermes-tool-result">';
+            html += '<strong>Result:</strong> ';
+            html += '<pre>' + escapeHtml(resultText) + '</pre>';
+            html += '</div>';
+        } else if (tc.result && tc.result.error) {
+            html += '<div class="hermes-tool-result" style="color: red;">';
+            html += '<strong>Error:</strong> ' + escapeHtml(tc.result.error);
+            html += '</div>';
+        }
+        html += '</details>';
+        html += '</div></div>';
+
+        $('#hermes-chat-area').append(html);
+        scrollToEnd();
+    };
+
+    /**
+     * Build a simple markdown table from DB query result
+     */
+    var buildTableMarkdown = function(result) {
+        if (!result.rows || result.rows.length === 0) {
+            return '0 rows returned';
+        }
+        var cols = result.columns || [];
+        if (cols.length === 0) return JSON.stringify(result);
+        var md = '| ' + cols.join(' | ') + ' |\n| ' + cols.map(function() { return '---'; }).join(' | ') + ' |\n';
+        for (var i = 0; i < result.rows.length; i++) {
+            var cells = cols.map(function(c) {
+                var v = result.rows[i][c];
+                return v === null ? 'NULL' : String(v);
+            });
+            md += '| ' + cells.join(' | ') + ' |\n';
+        }
+        return md;
+    };
+
+    /**
+     * Show tool confirmation modal (deprecated - kept for compatibility)
      */
     var showToolModal = function(toolCall) {
         var html = '<h4>' + escapeHtml(toolCall.name) + '</h4>';
@@ -307,7 +380,7 @@ define(['jquery', 'core/ajax', 'core/str', 'filter_mathjaxloader/loader'], funct
 
         $('#hermes-tool-modal-body').html(html);
         $('#hermes-tool-modal').show();
-        currentMessage = toolCall;
+        currentMessage = toolCall || {id: tc.id, name: tc.name, input: tc.input, result: tc.result};
     };
 
     /**
@@ -316,20 +389,23 @@ define(['jquery', 'core/ajax', 'core/str', 'filter_mathjaxloader/loader'], funct
     var handleToolResponse = function(approved) {
         if (!currentMessage) return;
 
-        var promises = ajax.call([{
-            methodname: 'local_hermesagent_tool_response',
-            args: {
+        // Call api.php directly - avoids Moodle external API cache issues
+        $.ajax({
+            url: config.api_url + '?action=tool_response',
+            type: 'POST',
+            data: {
+                sesskey: config.sesskey,
                 messageid: currentMessage.id,
-                approved: approved
+                approved: approved ? 1 : 0
+            },
+            success: function() {
+                $('#hermes-tool-modal').hide();
+                currentMessage = null;
+                scrollToEnd();
+            },
+            error: function(ex) {
+                console.error('[Hermes] handleToolResponse failed:', ex);
             }
-        }]);
-
-        promises[0].then(function() {
-            $('#hermes-tool-modal').hide();
-            currentMessage = null;
-            scrollToEnd();
-        }).catch(function(ex) {
-            console.error('[Hermes] handleToolResponse failed:', ex);
         });
     };
 

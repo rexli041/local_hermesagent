@@ -33,7 +33,7 @@ if ($hassiteconfig) {
         $health_data = json_decode($bridge_health, true);
     }
 
-    $hermes_home = '${HERMES_HOME} (default: /var/www/moodledata/.hermes)';
+    $hermes_home = '/var/www/moodledata/.hermes';
     $hermes_installed = file_exists("$hermes_home/venv/bin/hermes");
     $hermes_version = 'Not installed';
     if ($hermes_installed) {
@@ -52,8 +52,10 @@ if ($hassiteconfig) {
     }
     $bridge_html .= '</table>';
     $bridge_html .= '<div class="mt-2">';
-    $bridge_html .= '<a href="' . $CFG->wwwroot . '/local/hermesagent/settings.php?action=start&sesskey=' . sesskey() . '" class="btn btn-sm btn-success">Start</a> ';
-    $bridge_html .= '<a href="' . $CFG->wwwroot . '/local/hermesagent/settings.php?action=stop&sesskey=' . sesskey() . '" class="btn btn-sm btn-danger">Stop</a> ';
+    $bridge_html .= '<a href="' . $CFG->wwwroot . '/local/hermesagent/settings_action.php?action=start&sesskey=' . sesskey() . '" class="btn btn-sm btn-success">Start</a> ';
+    $bridge_html .= '<a href="' . $CFG->wwwroot . '/local/hermesagent/settings_action.php?action=stop&sesskey=' . sesskey() . '" class="btn btn-sm btn-danger">Stop</a> ';
+    $bridge_html .= '<a href="' . $CFG->wwwroot . '/local/hermesagent/settings_action.php?action=restart&sesskey=' . sesskey() . '" class="btn btn-sm btn-warning">Restart ACP</a> ';
+    $bridge_html .= '<a href="' . $CFG->wwwroot . '/local/hermesagent/settings_action.php?action=update&sesskey=' . sesskey() . '" class="btn btn-sm btn-info">Update &amp; Bootstrap</a> ';
     $bridge_html .= '</div>';
     $bridge_html .= '</div>';
 

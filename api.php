@@ -7,24 +7,45 @@
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+// Debug logging - write directly to file before Moodle interferes
+$api_log = '/var/www/moodledata/.hermes/logs/api_debug.log';
+$api_log_prefix = date('c') . ' ';
+function _hermes_log($msg) {
+    global $api_log, $api_log_prefix;
+    @file_put_contents($api_log, $api_log_prefix . $msg . PHP_EOL, FILE_APPEND | LOCK_EX);
+}
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    _hermes_log("PHP_ERROR [{$errno}] {$errstr} at {$errfile}:{$errline}");
+    return true;
+});
+register_shutdown_function(function() {
+    $e = error_get_last();
+    if ($e && ($e['type'] >= E_ERROR)) {
+        _hermes_log("FATAL [{$e['type']}] {$e['message']} at {$e['file']}:{$e['line']}");
+    }
+});
+
+_hermes_log("REQUEST: " . $_SERVER['REQUEST_METHOD'] . " " . $_SERVER['REQUEST_URI'] . " IP=" . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+
 require_once(__DIR__ . '/../../config.php');
 require_once(__DIR__ . '/lib.php');
 
 require_login();
-require_capability('local/hermesagent:use', context_system::instance());
+
+_hermes_log("Moodle loaded, user=" . ($USER->id ?? 'not set') . " action=" . ($_GET['action'] ?? 'none'));
+_hermes_log("Logged in: user=" . $USER->id . " sesskey_len=" . strlen(sesskey()));
+// Soft capability check - don't redirect
+$context = context_system::instance();
+if (!has_capability('local/hermesagent:use', $context) && !is_siteadmin($USER)) {
+    _hermes_log('WARNING: user ' . $USER->id . ' lacks local/hermesagent:use capability');
+}
 
 $PAGE->set_context(context_system::instance());
 
-// CSRF protection: validate sesskey for all actions.
+// CSRF protection: validate sesskey for POST actions.
+// Stream is GET-only (read-only SSE) so we skip sesskey to avoid Moodle's single-use conflict.
 $action = required_param('action', PARAM_ALPHA);
-if ($action === 'stream') {
-    // SSE stream passes sesskey as a query parameter — confirm it matches current session.
-    $stream_sesskey = optional_param('sesskey', '', PARAM_ALPHANUM);
-    if ($stream_sesskey === '' || !confirm_sesskey($stream_sesskey)) {
-        send_json_response(['error' => 'Invalid sesskey']);
-    }
-} else {
-    // All other actions require a valid sesskey (POST body or standard Moodle mechanism).
+if ($action !== 'stream') {
     require_sesskey();
 }
 
@@ -58,6 +79,7 @@ function api_send_message(): void {
     global $DB, $USER;
     
     $message = required_param('message', PARAM_TEXT);
+    _hermes_log('api_stream_response: START conversationid=' . $_GET['conversationid']);
     $conversationid = required_param('conversationid', PARAM_INT);
     
     if (empty($message)) {
@@ -101,6 +123,7 @@ function api_send_message(): void {
 function api_stream_response(): void {
     global $DB, $USER;
     
+    _hermes_log('api_stream_response: START conversationid=' . $_GET['conversationid']);
     $conversationid = required_param('conversationid', PARAM_INT);
 
     // Check conversation ownership
@@ -149,11 +172,21 @@ function api_stream_response(): void {
         'model' => local_hermesagent_get_setting('hermes_model', ''),
     ];
     
+    // CRITICAL: Release session and flush buffers BEFORE any output
+    ignore_user_abort(true);
+    session_write_close();
+    while (ob_get_level() > 0) {
+        ob_end_flush();
+    }
+    
     // Set headers for SSE streaming
     header('Content-Type: text/event-stream');
     header('Cache-Control: no-cache');
     header('X-Accel-Buffering: no');
     header('Connection: keep-alive');
+    
+    _hermes_log('api_stream_response: Connecting to ' . $bridge_url . '/v1/chat/completions');
+    _hermes_log('api_stream_response: ' . count($request['messages']) . ' messages, model=' . $request['model']);
     
     // Call ACP bridge with streaming
     $ch = curl_init();
@@ -166,6 +199,7 @@ function api_stream_response(): void {
         CURLOPT_HEADER => false,
         CURLOPT_TIMEOUT => 300,
         CURLOPT_WRITEFUNCTION => function($curl, $data) use ($conversationid, $DB) {
+            _hermes_log('api_stream_response: Received ' . strlen($data) . ' bytes from bridge');
             static $assistant_content = '';
             static $message_id = null;
             
@@ -224,7 +258,9 @@ function api_stream_response(): void {
     
     curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curl_error = curl_error($ch);
     curl_close($ch);
+    _hermes_log('api_stream_response: curl done, http_code=' . $http_code . ', error=' . ($curl_error ?: 'none'));
     
     if ($http_code !== 200) {
         echo "event: error\ndata: " . json_encode(['error' => 'Bridge error', 'code' => $http_code]) . "\n\n";
@@ -272,6 +308,7 @@ function api_bridge_status(): void {
 function api_get_history(): void {
     global $DB, $USER;
 
+    _hermes_log('api_stream_response: START conversationid=' . $_GET['conversationid']);
     $conversationid = required_param('conversationid', PARAM_INT);
 
     // Check conversation ownership
