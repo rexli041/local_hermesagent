@@ -18,6 +18,24 @@ if ($hassiteconfig) {
         $bridge_port = '9118';
     }
 
+    $hermes_home = getenv('HERMES_HOME') ?: '/var/www/moodledata/.hermes';
+
+    $action = optional_param('action', '', PARAM_ALPHANUM);
+    if (!empty($action)) {
+        require_sesskey();
+        
+        if ($action === 'start') {
+            $cmd = "HERMES_HOME=" . escapeshellarg($hermes_home) . " " . 
+                   escapeshellarg("$hermes_home/venv/bin/python") . " " . 
+                   escapeshellarg("/var/www/html/public/local/hermesagent/classes/bridge/acp_bridge.py") . " > /dev/null 2>&1 &";
+            exec($cmd);
+        } else if ($action === 'stop') {
+            exec("pkill -f acp_bridge.py");
+        }
+        
+        redirect(new moodle_url('/admin/settings.php', ['section' => 'local_hermesagent_settings']));
+    }
+
     $is_running = false;
     $health_data = null;
     $ch = curl_init("http://127.0.0.1:$bridge_port/health");
@@ -52,8 +70,10 @@ if ($hassiteconfig) {
     }
     $bridge_html .= '</table>';
     $bridge_html .= '<div class="mt-2">';
-    $bridge_html .= '<a href="' . $CFG->wwwroot . '/local/hermesagent/settings_action.php?action=start&sesskey=' . sesskey() . '" class="btn btn-sm btn-success">Start</a> ';
-    $bridge_html .= '<a href="' . $CFG->wwwroot . '/local/hermesagent/settings_action.php?action=stop&sesskey=' . sesskey() . '" class="btn btn-sm btn-danger">Stop</a> ';
+    // $bridge_html .= '<a href="' . $CFG->wwwroot . '/local/hermesagent/settings_action.php?action=start&sesskey=' . sesskey() . '" class="btn btn-sm btn-success">Start</a> ';
+    // $bridge_html .= '<a href="' . $CFG->wwwroot . '/local/hermesagent/settings_action.php?action=stop&sesskey=' . sesskey() . '" class="btn btn-sm btn-danger">Stop</a> ';
+    $bridge_html .= '<a href="' . $CFG->wwwroot . '/admin/settings.php?section=local_hermesagent_settings&action=start&sesskey=' . sesskey() . '" class="btn btn-sm btn-success">Start</a> ';
+    $bridge_html .= '<a href="' . $CFG->wwwroot . '/admin/settings.php?section=local_hermesagent_settings&action=stop&sesskey=' . sesskey() . '" class="btn btn-sm btn-danger">Stop</a> ';
     $bridge_html .= '<a href="' . $CFG->wwwroot . '/local/hermesagent/settings_action.php?action=restart&sesskey=' . sesskey() . '" class="btn btn-sm btn-warning">Restart ACP</a> ';
     $bridge_html .= '<a href="' . $CFG->wwwroot . '/local/hermesagent/settings_action.php?action=update&sesskey=' . sesskey() . '" class="btn btn-sm btn-info">Update &amp; Bootstrap</a> ';
     $bridge_html .= '</div>';
@@ -78,7 +98,7 @@ if ($hassiteconfig) {
 
     $settings->add(new admin_setting_description('local_hermesagent/terminal_link', '', $term_link));
 
-    $PAGE->requires->css('/local/hermesagent/styles/terminal.css');
+    // $PAGE->requires->css('/local/hermesagent/styles/terminal.css');
 
     $ADMIN->add('localplugins', $settings);
 }

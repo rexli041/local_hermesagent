@@ -34,13 +34,17 @@ $PAGE->set_url(new moodle_url('/local/hermesagent/chat.php', [
 $PAGE->set_context(context_system::instance());
 $PAGE->set_title(get_string('pluginname', 'local_hermesagent'));
 $PAGE->set_heading(get_string('pluginname', 'local_hermesagent'));
-$PAGE->requires->css(new moodle_url('/local/hermesagent/styles/chat.css'));
+#$PAGE->requires->css(new moodle_url('/local/hermesagent/styles/chat.css'));
 // Load the chat AMD module (proper Moodle way)
 $PAGE->requires->js_call_amd('local_hermesagent/chat', 'init');
 
-
+$css_file = __DIR__ . '/styles/chat.css';
 
 echo $OUTPUT->header();
+
+if (file_exists($css_file)) {
+    echo '<style>' . file_get_contents($css_file) . '</style>';
+}
 
 // Conversation list sidebar
 global $DB;
@@ -82,7 +86,7 @@ if ($newly_created) {
 
 // Get bridge status
 $bridge_port = local_hermesagent_get_bridge_port();
-$bridge_status = local_hermesagent_get_setting('bridge_status', 'stopped');
+$bridge_status = local_hermesagent_check_bridge_status();
 
 // Conversation list
 echo html_writer::start_div('hermes-chat-container');

@@ -1,254 +1,157 @@
 #!/usr/bin/env python3
-"""
-ACP Bridge: HTTP server that bridges Moodle to Hermes Agent via ACP stdio JSON-RPC.
-
-Runs as www-data using the portable Python venv in moodledata/.hermes/.
-Configuration read from Moodle config_plugins table via pymysql.
-"""
-
 import os
-import sys
 import json
-import time
 import uuid
-import signal
 import asyncio
 import subprocess
-from typing import Dict, Optional
+import sys
+from typing import Dict
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
+from dotenv import load_dotenv
+import uvicorn
 
 HERMES_HOME = os.environ.get("HERMES_HOME", "/var/www/moodledata/.hermes")
 PORT = int(os.environ.get("BRIDGE_PORT", "9118"))
-MOODLE_DB_HOST = os.environ.get("MOODLE_DB_HOST", "mariadb")
-MOODLE_DB_NAME = os.environ.get("MOODLE_DB_NAME", "moodle")
-MOODLE_DB_USER = os.environ.get("MOODLE_DB_USER", "moodleuser")
-MOODLE_DB_PASS = os.environ.get("MOODLE_DB_PASS", "")
-
-import pymysql
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
-import uvicorn
+env_path = os.path.join(HERMES_HOME, ".env")
+env_loaded = load_dotenv(dotenv_path=env_path, override=True)
 
 app = FastAPI(title="Hermes ACP Bridge")
+sessions: Dict[str, 'ACPSession'] = {}
 
-# Session registry: sid -> ACP process
-sessions: Dict[str, subprocess.Popen] = {}
+class ACPSession:
+    def __init__(self, sid: str):
+        self.sid = sid
+        self.acp_session_id = None
+        self.req_id = 0
+        
+        cmd = [f"{HERMES_HOME}/venv/bin/hermes", "acp", "--accept-hooks"]
 
+        bridge_env = os.environ.copy()
 
-def get_db_config():
-    """Read Moodle config for API key and provider settings."""
-    try:
-        conn = pymysql.connect(
-            host=MOODLE_DB_HOST,
-            database=MOODLE_DB_NAME,
-            user=MOODLE_DB_USER,
-            password=MOODLE_DB_PASS,
-            charset="utf8mb4",
-            cursorclass=pymysql.cursors.DictCursor
+        self.proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=sys.stderr,
+            text=True,
+            bufsize=1,
+            cwd=HERMES_HOME,
+            env=bridge_env
         )
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT name, value FROM mdl_config_plugins WHERE plugin=%s",
-                ("local_hermesagent",)
-            )
-            rows = cur.fetchall()
-        conn.close()
-        return {row["name"]: row["value"] for row in rows}
-    except Exception as e:
-        print(f"DB config error: {e}", file=sys.stderr)
-        return {}
 
+    async def send_rpc(self, method: str, params: dict):
+        """发送 JSON-RPC 请求给 Hermes 底层进程"""
+        self.req_id += 1
+        req = {
+            "jsonrpc": "2.0",
+            "id": self.req_id,
+            "method": method,
+            "params": params
+        }
+        msg = json.dumps(req) + "\n"
+        self.proc.stdin.write(msg)
+        self.proc.stdin.flush()
 
-def spawn_acp_session():
-    """Spawn a new hermes acp subprocess."""
-    hermes_bin = os.path.join(HERMES_HOME, "venv", "bin", "hermes")
-    if not os.path.exists(hermes_bin):
-        raise RuntimeError(f"Hermes not found at {hermes_bin}. Run bootstrap first.")
-    
-    env = os.environ.copy()
-    env["HERMES_HOME"] = HERMES_HOME
-    env["PATH"] = f"{HERMES_HOME}/venv/bin:{env.get('PATH', '/usr/bin:/bin')}"
-    
-    # Read config from DB
-    config = get_db_config()
-    if config.get("hermes_model"):
-        env["HERMES_MODEL"] = config["hermes_model"]
-    
-    proc = subprocess.Popen(
-        [hermes_bin, "acp", "--accept-hooks"],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=env,
-        text=True,
-        bufsize=1
-    )
-    
-    # Wait for it to be ready (first JSON line)
-    try:
-        first_line = proc.stdout.readline()
-        if first_line:
-            print(f"ACP started: {first_line.strip()}")
-    except Exception:
-        pass
-    
-    return proc
+    async def read_response(self) -> dict:
+        """非阻塞地读取 Hermes 底层进程的返回结果"""
+        line = await asyncio.to_thread(self.proc.stdout.readline)
+        if not line:
+            return None
+        try:
+            return json.loads(line)
+        except json.JSONDecodeError:
+            print(f"[WARN] 无法解析的输出: {line}", flush=True)
+            return {"error": {"message": "JSON Decode Error"}}
 
+# ---------------- API 路由映射 ----------------
 
 @app.get("/health")
-def health():
-    return {
-        "status": "ok",
-        "hermes_home": HERMES_HOME,
-        "sessions": len(sessions),
-        "hermes_bin": os.path.exists(os.path.join(HERMES_HOME, "venv", "bin", "hermes"))
-    }
+def health_check():
+    """供 Moodle api.php 调用的健康检查接口，解决 Bridge 永远显示 stopped 的问题"""
+    return {"status": "ok", "message": "ACP Bridge is running", "sessions_active": len(sessions)}
 
+@app.get("/status")
+def status_check():
+    return {"status": "running"}
 
-@app.post("/session/create")
-def create_session():
-    """Create a new ACP session."""
-    try:
-        proc = spawn_acp_session()
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.post("/v1/chat/completions")
+async def chat_completions(request: Request):
+    """兼容 OpenAI 格式的入口，接住 api.php 转发过来的聊天请求"""
+    data = await request.json()
     
-    sid = str(uuid.uuid4())[:8]
-    sessions[sid] = proc
-    return {"sid": sid, "status": "created"}
+    # 解析前端传来的数据
+    messages = data.get("messages", [])
+    session_id = data.get("session_id", str(uuid.uuid4())[:8])
+    
+    # 提取用户发送的最新一条消息
+    user_msg = ""
+    if messages and len(messages) > 0:
+        user_msg = messages[-1].get("content", "")
+    
+    # 如果会话不存在，则初始化底层 ACP 握手协议
+    if session_id not in sessions:
+        s = ACPSession(session_id)
+        sessions[session_id] = s
+        
+        # 1. 握手
+        await s.send_rpc("initialize", {"protocolVersion": "1.0", "capabilities": {}})
+        await s.read_response()
+        
+        # 2. 创建底层 Session
+        await s.send_rpc("session/new", {"cwd": HERMES_HOME, "mcpServers": []})
+        resp = await s.read_response()
+        
+        if resp and "result" in resp and isinstance(resp["result"], dict):
+            # 获取真正的 agent session id
+            s.acp_session_id = resp["result"].get("sessionId", session_id)
+        else:
+            s.acp_session_id = session_id
+    else:
+        s = sessions[session_id]
 
+    # 构建并发送 Prompt 任务给模型
+    prompt_payload = [{"type": "text", "text": user_msg}]
+    await s.send_rpc("session/prompt", {
+        "sessionId": s.acp_session_id,
+        "prompt": prompt_payload
+    })
+    
+    # 流式读取与解析逻辑
+    async def stream_generator():
+        while True:
+            r = await s.read_response()
+            if not r: 
+                break
+            
+            # 如果底层报错，转发给前端
+            if "error" in r:
+                err_msg = r["error"].get("message", "Unknown error")
+                yield f"data: {json.dumps({'error': err_msg})}\n\n"
+                break
+            
+            # 解析标准 ACP 流式更新
+            params = r.get("params", {})
+            update = params.get("update", {})
+            session_update = update.get("sessionUpdate", "")
 
-@app.post("/session/{sid}/send")
-async def send_message(sid: str, request: dict):
-    """Send a message to an ACP session and stream the response."""
-    if sid not in sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    proc = sessions[sid]
-    if proc.poll() is not None:
-        del sessions[sid]
-        raise HTTPException(status_code=410, detail="Session ended")
-    
-    message = json.dumps({
-        "jsonrpc": "2.0",
-        "method": "chat/send",
-        "params": {"message": request.get("message", "")}
-    }) + "\n"
-    
-    proc.stdin.write(message)
-    proc.stdin.flush()
-    
-    async def stream_response():
-        try:
-            while True:
-                line = proc.stdout.readline()
-                if not line:
+            # 精准抓取 AI 回复的文本片段
+            if session_update == "agent_message_chunk":
+                delta_text = update.get("content", {}).get("text", "")
+                if delta_text:
+                    # 返回 Moodle 前端期待的简单 JSON 格式
+                    yield f"data: {json.dumps({'delta': delta_text})}\n\n"
+            
+            # 判断回合是否结束
+            if "result" in r and isinstance(r["result"], dict):
+                if r["result"].get("stopReason") == "end_turn":
+                    # 发送结束标记
+                    yield f"data: {json.dumps({'done': True})}\n\n"
                     break
-                data = line.strip()
-                if not data:
-                    continue
-                try:
-                    parsed = json.loads(data)
-                    yield f"data: {json.dumps({'type': 'message', 'data': parsed})}\n\n"
-                except json.JSONDecodeError:
-                    yield f"data: {json.dumps({'type': 'raw', 'data': data})}\n\n"
-                await asyncio.sleep(0)
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'data': str(e)})}\n\n"
-    
-    return StreamingResponse(stream_response(), media_type="text/event-stream")
+                    
+    return StreamingResponse(stream_generator(), media_type="text/event-stream")
 
-
-@app.post("/session/{sid}/tool_call")
-def tool_call(sid: str, request: dict):
-    """Call a tool on an ACP session."""
-    if sid not in sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    proc = sessions[sid]
-    if proc.poll() is not None:
-        del sessions[sid]
-        raise HTTPException(status_code=410, detail="Session ended")
-    
-    tool_call = {
-        "jsonrpc": "2.0",
-        "method": "tools/call",
-        "params": {
-            "name": request.get("name", ""),
-            "arguments": request.get("arguments", {})
-        }
-    }
-    
-    proc.stdin.write(json.dumps(tool_call) + "\n")
-    proc.stdin.flush()
-    
-    # Read response
-    line = proc.stdout.readline()
-    if line:
-        try:
-            return JSONResponse(content=json.loads(line.strip()))
-        except json.JSONDecodeError:
-            return JSONResponse(content={"raw": line.strip()})
-    
-    raise HTTPException(status_code=504, detail="No response from ACP")
-
-
-@app.delete("/session/{sid}")
-def delete_session(sid: str):
-    """Kill an ACP session."""
-    if sid not in sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    proc = sessions[sid]
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-    del sessions[sid]
-    return {"status": "terminated"}
-
-
-@app.get("/session/{sid}/info")
-def session_info(sid: str):
-    """Get session info."""
-    if sid not in sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    proc = sessions[sid]
-    return {
-        "sid": sid,
-        "pid": proc.pid,
-        "alive": proc.poll() is None
-    }
-
-
-def signal_handler(signum, frame):
-    """Handle shutdown signals."""
-    print("Shutting down ACP bridge...")
-    for sid, proc in sessions.items():
-        proc.terminate()
-    sys.exit(0)
-
-
-signal.signal(signal.SIGTERM, signal_handler)
-signal.signal(signal.SIGINT, signal_handler)
-
-
-def main():
-    print(f"ACP Bridge v0.1")
-    print(f"HERMES_HOME={HERMES_HOME}")
-    print(f"Port={PORT}")
-    print(f"DB Host={MOODLE_DB_HOST}")
-    
-    # Verify Hermes is available
-    hermes_bin = os.path.join(HERMES_HOME, "venv", "bin", "hermes")
-    if not os.path.exists(hermes_bin):
-        print(f"ERROR: Hermes not found at {hermes_bin}")
-        print("Run: scripts/bootstrap.sh")
-        sys.exit(1)
-    
-    uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="info")
-
-
+# ---------------- 启动入口 ----------------
 if __name__ == "__main__":
-    main()
+    print(f"启动 Hermes ACP Bridge，监听端口 {PORT}...")
+    uvicorn.run(app, host="127.0.0.1", port=PORT)

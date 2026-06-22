@@ -15,7 +15,32 @@ defined('MOODLE_INTERNAL') || die();
 function local_hermesagent_get_setting(string $name, string $default = ''): string {
     global $DB;
     $record = $DB->get_record('local_hermesagent_settings', ['name' => $name], 'value', MUST_EXIST);
-    return $record->value ?: $default;
+    return ($record && $record->value) ? $record->value : $default;
+}
+
+/**
+ * 实时动态检测 Bridge 真实存活状态，并同步写入数据库
+ */
+function local_hermesagent_check_bridge_status(): string {
+    $bridge_port = local_hermesagent_get_bridge_port();
+    
+    $ch = curl_init("http://127.0.0.1:$bridge_port/health");
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 2,
+    ]);
+    
+    $resp = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($resp !== false && $http_code === 200) {
+        local_hermesagent_set_setting('bridge_status', 'running');
+        return 'running';
+    } else {
+        local_hermesagent_set_setting('bridge_status', 'stopped');
+        return 'stopped';
+    }
 }
 
 /**
