@@ -1,0 +1,16 @@
+<?php
+/**
+ * Plugin version info
+ *
+ * @package    local_hermesagent
+ * @copyright  2026
+ * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+defined('MOODLE_INTERNAL') || die();
+
+$plugin->component = 'local_hermesagent';
+$plugin->release   = '0.3.7';
+$plugin->version   = 2026062701;
+$plugin->requires  = 2024100700; // Moodle 5.0+
+$plugin->maturity  = MATURITY_BETA;

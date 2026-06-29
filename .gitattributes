@@ -1,0 +1,29 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Documentation
+*.md export-subst
+*.txt export-subst
+
+# PHP files
+*.php eol=lf
+
+# Python files
+*.py eol=lf
+
+# JavaScript
+*.js eol=lf
+
+# CSS
+*.css eol=lf
+*.scss eol=lf
+
+# XML
+*.xml eol=lf
+
+# Shell scripts
+*.sh eol=lf
+
+# Do not export test files from downloads
+tests/ export-ignore
+docs/ export-ignore

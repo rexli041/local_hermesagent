@@ -1,0 +1,45 @@
+# Environment and credentials
+.env
+.env.*
+credentials.json
+*_secret*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Moodle local cache
+localcache/
+moodledata/
+
+# Temporary files
+/tmp/*
+*.tmp
+*.log
+
+# Generated build files that should be rebuilt
+amd/build/*
+!amd/build/.gitkeep
+
+# SSH keys
+*.pem
+*.key
+id_rsa*

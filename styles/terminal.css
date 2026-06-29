@@ -1,0 +1,93 @@
+/* Hermes Terminal Styles */
+
+#hermes-terminal-container {
+    background: #1e1e1e;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #333;
+    font-family: 'Courier New', Consolas, monospace;
+    font-size: 13px;
+    max-height: 600px;
+    display: flex;
+    flex-direction: column;
+}
+
+#hermes-terminal-output {
+    color: #d4d4d4;
+    padding: 12px;
+    margin: 0;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 400px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.5;
+    font-size: 12px;
+    /* Allow text selection */
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+}
+
+.terminal-error {
+    color: #f48771;
+}
+
+.terminal-line {
+    display: block;
+}
+
+.terminal-line#term-loading {
+    color: #888;
+    font-style: italic;
+}
+
+#hermes-terminal-prompt {
+    color: #4ec9b0;
+    font-family: 'Courier New', Consolas, monospace;
+    font-size: 13px;
+    padding: 4px 0;
+    user-select: none;
+}
+
+.hermes-terminal-input-row {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    background: #252526;
+    border-top: 1px solid #333;
+}
+
+#hermes-terminal-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #d4d4d4;
+    font-family: 'Courier New', Consolas, monospace;
+    font-size: 13px;
+    outline: none;
+    padding: 8px 4px;
+}
+
+/* Bridge settings panel */
+.herms-status-panel {
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    margin-bottom: 16px;
+}
+
+/* Terminal link on settings page */
+.herms-terminal-link {
+    padding: 16px;
+    background: #f0f4f8;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    margin-top: 16px;
+}
+
+.herms-terminal-link h4 {
+    margin-top: 0;
+}

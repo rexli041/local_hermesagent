@@ -1,0 +1,394 @@
+@charset "UTF-8";
+/**
+ * Hermes Agent chat styles
+ */
+.hermes-chat-container {
+  display: flex;
+  height: calc(100vh - 200px);
+  min-height: 500px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+/* Sidebar */
+.hermes-sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hermes-sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.hermes-sidebar-header h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #cdd6f4;
+}
+.hermes-sidebar-header hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hermes-conversation-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.hermes-conv-item {
+  padding: 10px 12px;
+  margin-bottom: 2px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #a6adc8;
+  transition: background 0.15s;
+}
+.hermes-conv-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cdd6f4;
+}
+.hermes-conv-item.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #cdd6f4;
+  font-weight: 500;
+}
+
+.hermes-sidebar-footer {
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.hermes-sidebar-footer .btn-secondary {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #cdd6f4;
+}
+.hermes-sidebar-footer .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.hermes-bridge-status {
+  font-size: 11px;
+  margin-top: 8px;
+  color: #7f849c;
+}
+
+/* Main chat area */
+.hermes-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.hermes-chat-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Messages */
+.hermes-message {
+  display: flex;
+  gap: 12px;
+  max-width: 80%;
+}
+.hermes-message.hermes-user-message {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+.hermes-message.hermes-assistant-message {
+  align-self: flex-start;
+}
+
+.hermes-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.hermes-user-avatar {
+  background: #4f46e5;
+  color: white;
+}
+
+.hermes-assistant-avatar {
+  background: #10b981;
+  color: white;
+}
+
+.hermes-bubble {
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  min-width: 100px;
+}
+
+.hermes-user-bubble {
+  background: #4f46e5;
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.hermes-assistant-bubble {
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
+  border-bottom-left-radius: 4px;
+}
+
+.hermes-content {
+  word-wrap: break-word;
+}
+.hermes-content pre {
+  background: #1e1e2e;
+  color: #cdd6f4;
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 13px;
+  margin: 8px 0;
+}
+.hermes-content code {
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.hermes-content pre code {
+  background: none;
+  padding: 0;
+}
+
+.hermes-streaming::after {
+  content: "▋";
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+/* Input area */
+.hermes-input-area {
+  padding: 16px;
+  border-top: 1px solid #e2e8f0;
+  background: white;
+}
+
+.hermes-input-container {
+  display: flex;
+  gap: 8px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.hermes-input-container textarea {
+  flex: 1;
+  resize: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  min-height: 44px;
+  max-height: 120px;
+}
+.hermes-input-container textarea:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.hermes-input-container .btn-primary {
+  align-self: flex-end;
+  min-width: 80px;
+  border-radius: 8px;
+  background: #4f46e5;
+  border: none;
+}
+.hermes-input-container .btn-primary:hover {
+  background: #6366f1;
+}
+.hermes-input-container .btn-primary:disabled {
+  opacity: 0.6;
+}
+
+/* Tool modal */
+.hermes-tool-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.hermes-tool-modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.hermes-tool-modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+
+/* Spinner */
+.hermes-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #4f46e5;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* Error display */
+.hermes-error {
+  color: #dc3545;
+  padding: 0.5rem;
+  background: #f8d7da;
+  border-radius: 0.25rem;
+}
+
+/* Conversation item layout */
+.hermes-conv-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hermes-conv-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hermes-conv-rename {
+  display: none;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.75rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  flex-shrink: 0;
+  margin-left: 0.25rem;
+}
+.hermes-conv-rename:hover {
+  color: #4f46e5;
+}
+
+.hermes-conv-item:hover .hermes-conv-rename {
+  display: inline-block;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .hermes-chat-container {
+    flex-direction: column;
+    height: calc(100vh - 150px);
+  }
+  .hermes-sidebar {
+    width: 100%;
+    min-width: 100%;
+    max-height: 150px;
+  }
+  .hermes-message {
+    max-width: 95%;
+  }
+}
+
+/*# sourceMappingURL=chat.css.map */
+
+/* Tool call collapsible sections */
+.hermes-tool-call .hermes-tool-bubble {
+    background: #f8f9fa;
+    border-left: 3px solid #6c757d;
+    padding: 8px 12px;
+}
+.hermes-tool-details {
+    margin: 0;
+}
+.hermes-tool-summary {
+    cursor: pointer;
+    font-size: 0.85em;
+    color: #495057;
+    padding: 4px 0;
+    list-style: none;
+}
+.hermes-tool-summary::-webkit-details-marker { display: none; }
+.hermes-tool-summary::before {
+    content: "\25B6";
+    display: inline-block;
+    margin-right: 4px;
+    transition: transform 0.15s;
+}
+.hermes-tool-details[open] .hermes-tool-summary::before {
+    transform: rotate(90deg);
+}
+.hermes-tool-icon {
+    font-size: 1em;
+}
+.hermes-tool-input, .hermes-tool-result {
+    margin: 8px 0;
+    font-size: 0.85em;
+}
+.hermes-tool-input code, .hermes-tool-result pre {
+    background: #2d2d2d;
+    color: #f8f8f2;
+    padding: 8px 12px;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-size: 0.85em;
+    line-height: 1.4;
+}
+.hermes-tool-status {
+    font-size: 0.9em;
+}
