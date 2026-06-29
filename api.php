@@ -148,6 +148,7 @@ function api_stream_response(): void {
 
     $bridge_port = local_hermesagent_get_bridge_port();
     $bridge_url = "http://127.0.0.1:$bridge_port";
+<<<<<<< HEAD
 
     // Lazy-start: if bridge isn't responding, start it now (transparent to user)
     if (!local_hermesagent_ensure_bridge_running($bridge_port)) {
@@ -165,12 +166,32 @@ function api_stream_response(): void {
     }
     
     // Get loaded skills and build system prompt
+=======
+    
+    // Build messages array from conversation history
+    $messages = $DB->get_records('local_hermesagent_messages', ['conversationid' => $conversationid], 'id ASC');
+    
+    $history = [];
+    foreach ($messages as $msg) {
+        $history[] = [
+            'role' => $msg->role,
+            'content' => $msg->content,
+        ];
+    }
+    
+    // Get conversation's ACP session ID
+    $conv = $DB->get_record('local_hermesagent_conversations', ['id' => $conversationid]);
+    $acp_session = $conv ? $conv->acp_session_id : null;
+    
+    // Get loaded skills
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
     $skills = local_hermesagent_get_skills(null, true);
     $skill_content = '';
     foreach ($skills as $skill) {
         $skill_content .= "## {$skill->name}\n{$skill->description}\n\n{$skill->content}\n\n";
     }
     
+<<<<<<< HEAD
     $system_prompt = "You are a helpful assistant with access to Moodle database tools.\n\n";
     if ($skill_content) {
         $system_prompt .= "## Available Skills\n" . $skill_content;
@@ -182,6 +203,36 @@ function api_stream_response(): void {
         'conversationid' => $conversationid,
         'message' => $user_message,
         'system_prompt' => $system_prompt,
+=======
+    // Build system prompt with output contract enforcement
+    $system_prompt = "You are a helpful assistant with access to Moodle database tools.\n\n";
+    $system_prompt .= "## OUTPUT CONTRACT (MANDATORY)\n\n";
+    $system_prompt .= "1. ALWAYS produce user-visible answer in `delta` field - never leave it empty\n";
+    $system_prompt .= "2. Put internal thinking in `reasoning` field only - it is hidden from user\n";
+    $system_prompt .= "3. When a tool is needed, emit `tool_call` action - do NOT just describe it\n";
+    $system_prompt .= "4. Final answer must exist: complete, natural language, properly formatted\n";
+    $system_prompt .= "5. Do NOT put the actual answer inside reasoning - it will be dropped\n\n";
+    $system_prompt .= "## TOOL USAGE\n";
+    $system_prompt .= "- If tool is available and relevant: call it immediately\n";
+    $system_prompt .= "- After tool returns: summarize results in delta as final answer\n";
+    $system_prompt .= "- If tool fails: explain what went wrong in delta\n";
+    if ($skill_content) {
+        $system_prompt .= "\n\n## Available Skills\n" . $skill_content;
+    }
+    
+    // Prepend system message to history
+    array_unshift($history, [
+        'role' => 'system',
+        'content' => $system_prompt,
+    ]);
+    
+    // Build request to ACP bridge
+    $request = [
+        'messages' => $history,
+        'session_id' => $acp_session,
+        'skills' => $skill_content,
+        'model' => local_hermesagent_get_setting('hermes_model', ''),
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
     ];
     
     // CRITICAL: Release session and flush buffers BEFORE any output
@@ -197,8 +248,13 @@ function api_stream_response(): void {
     header('X-Accel-Buffering: no');
     header('Connection: keep-alive');
     
+<<<<<<< HEAD
     _hermes_log('api_stream_response: Connecting to ACP bridge at ' . $bridge_url . '/session/prompt');
     _hermes_log('api_stream_response: conversationid=' . $conversationid . ' msg_len=' . strlen($request['message']));
+=======
+    _hermes_log('api_stream_response: Connecting to ' . $bridge_url . '/v1/chat/completions');
+    _hermes_log('api_stream_response: ' . count($request['messages']) . ' messages, model=' . $request['model']);
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
     
     // Request ID for tracing
     $req_id = 'R' . substr(md5(uniqid(rand(), true)), 0, 10);
@@ -207,13 +263,18 @@ function api_stream_response(): void {
     // Call ACP bridge with streaming
     $ch = curl_init();
     curl_setopt_array($ch, [
+<<<<<<< HEAD
         CURLOPT_URL => $bridge_url . '/session/prompt',
+=======
+        CURLOPT_URL => $bridge_url . '/v1/chat/completions',
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => json_encode($request),
         CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
         CURLOPT_RETURNTRANSFER => false,
         CURLOPT_HEADER => false,
         CURLOPT_TIMEOUT => 300,
+<<<<<<< HEAD
         CURLOPT_WRITEFUNCTION => function($curl, $data) use ($conversationid, $DB, $req_id) {
             _hermes_log('api_stream_response: Received ' . strlen($data) . ' bytes from bridge');
             static $assistant_content = '';
@@ -228,10 +289,22 @@ function api_stream_response(): void {
                     $event_type = substr($line, 7);
                     continue;
                 }
+=======
+        CURLOPT_WRITEFUNCTION => function($curl, $data) use ($conversationid, $DB) {
+            _hermes_log('api_stream_response: Received ' . strlen($data) . ' bytes from bridge');
+            static $assistant_content = '';
+            static $reasoning_content = '';  // Track reasoning separately for safety net
+            static $message_id = null;
+            
+            // Parse SSE data
+            $lines = explode("\n", $data);
+            foreach ($lines as $line) {
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
                 if (strpos($line, 'data: ') === 0) {
                     $payload = substr($line, 6);
                     $json = json_decode($payload, true);
                     if (!$json) continue;
+<<<<<<< HEAD
                     
                     $dl = strlen($json['delta'] ?? '');
                     $rl = strlen($json['reasoning'] ?? '');
@@ -285,6 +358,102 @@ function api_stream_response(): void {
                         flush();
                         return strlen($data);
                     }
+=======
+                    if (isset($json['done']) && $json['done']) {
+                        _hermes_log("[$req_id] DONE received - assistant_content_len=" . strlen($assistant_content) . " reasoning_content_len=" . strlen($reasoning_content));
+                        // SAFETY NET: If delta is effectively empty but reasoning has content,
+                        // use reasoning as the answer for DB storage (already shown in collapsible)
+                        if ((trim($assistant_content) === '' || trim($assistant_content) === "\n\n") && !empty($reasoning_content)) {
+                            _hermes_log("[$req_id] *** SAFETY NET: delta empty, merging " . strlen($reasoning_content) . " chars of reasoning for DB");
+                            $assistant_content = $reasoning_content;
+                            // Update DB — reasoning already displayed in collapsible
+                            if ($message_id) {
+                                $rec = $DB->get_record('local_hermesagent_messages', ['id' => $message_id]);
+                                if ($rec) {
+                                    $rec->content = $reasoning_content;
+                                    $DB->update_record('local_hermesagent_messages', $rec);
+                                }
+                            }
+                            // CRITICAL: Do NOT echo reasoning again - already streamed via type='reasoning' events
+                            // Only update DB for persistence
+                        }
+                        
+                        // Finalize
+                        flush();
+                        return strlen($data);
+                    }
+                    
+                    // Record session on first event
+                    // Log every parsed chunk
+                    $keys = array_keys($json);
+                    $dl = strlen($json['delta'] ?? '');
+                    $rl = strlen($json['reasoning'] ?? '');
+                    $tc_flag = isset($json['tool_call']) ? '[TC]' : '';
+                    $dn_flag = isset($json['done']) ? '[DN]' : '';
+                    _hermes_log("[$req_id] CHUNK keys=" . json_encode($keys) . " delta=$dl reasoning=$rl $tc_flag $dn_flag");
+                    
+                    if (isset($json['session_id']) && $message_id === null) {
+                        $assistant_content = '';
+                        $rec = new stdClass();
+                        $rec->conversationid = $conversationid;
+                        $rec->role = 'assistant';
+                        $rec->content = '';
+                        $rec->timemodified = time();
+                        $message_id = $DB->insert_record('local_hermesagent_messages', $rec);
+                        
+                        $conv = $DB->get_record('local_hermesagent_conversations', ['id' => $conversationid]);
+                        if ($conv) {
+                            $conv->acp_session_id = $json['session_id'];
+                            $DB->update_record('local_hermesagent_conversations', $conv);
+                        }
+                        
+                        echo "event: session\ndata: " . json_encode(['session_id' => $json['session_id']]) . "\n\n";
+                        flush();
+                        // Don't continue — there may also be reasoning/delta in this chunk
+                    }
+                    
+                    // Handle reasoning (thinking process) — this is where the bridge puts most content
+                    if (isset($json['reasoning']) && $json['reasoning'] !== '') {
+                        $chunk = $json['reasoning'];
+                        $reasoning_content .= $chunk;
+                        // Send reasoning_content as 'full' so JS can render it
+                        echo "event: message\ndata: " . json_encode(['delta' => $chunk, 'full' => $reasoning_content, 'type' => 'reasoning']) . "\n\n";
+                        flush();
+                        _hermes_log("[$req_id] >>> ECHOED REASONING event (total_reasoning=" . strlen($reasoning_content) . ")");
+                    }
+                    
+                    // Handle delta (actual model output)
+                    if (isset($json['delta']) && $json['delta'] !== '') {
+                        $chunk = $json['delta'];
+                        
+                        // Filter out [Result: ...] proxy tool output — not user-facing
+                        $chunk_trimmed = trim($chunk);
+                        if (strpos($chunk_trimmed, '[Result:') === 0) {
+                            _hermes_log("[$req_id] SKIP proxy [Result] delta (" . strlen($chunk) . " chars)");
+                            // Don't accumulate or echo tool result JSON to browser
+                        }
+                        // NOTE: Removed reasoning duplicate filter — the safety net delta IS the answer
+                        else {
+                            $assistant_content .= $chunk;
+                            _hermes_log("[$req_id] DELTA chunk len=" . strlen($chunk) . ": " . substr(json_encode($chunk), 0, 50));
+                            echo "event: message\ndata: " . json_encode(['delta' => $chunk, 'full' => $assistant_content]) . "\n\n";
+                            flush();
+                            _hermes_log("[$req_id] >>> ECHOED DELTA event (total_delta=" . strlen($assistant_content) . ")");
+                        }
+                    }
+                    
+                    if (isset($json['tool_call'])) {
+                        $tc_name = $json['tool_call']['name'] ?? 'unknown';
+                        $tc_has_result = isset($json['tool_call']['result']) ? 'YES' : 'NO';
+                        $tc_result_type = isset($json['tool_call']['result']) ? gettype($json['tool_call']['result']) : 'N/A';
+                        _hermes_log("[$req_id] ECHO TOOL_CALL: name=$tc_name result=$tc_has_result type=$tc_result_type");
+                        // Debug: log the full tool_call payload structure
+                        _hermes_log("[$req_id] TOOL_CALL payload keys: " . json_encode(array_keys($json['tool_call'])));
+                        echo "event: tool_call\ndata: " . json_encode(['tool_call' => $json['tool_call']]) . "\n\n";
+                        flush();
+                        _hermes_log("[$req_id] >>> ECHOED TOOL_CALL event: $tc_name (keys: " . json_encode(array_keys($json['tool_call'])) . ")");
+                    }
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
                 }
             }
             
@@ -295,9 +464,18 @@ function api_stream_response(): void {
     curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curl_error = curl_error($ch);
+<<<<<<< HEAD
     _hermes_log("[$req_id] ===== STREAM END: http=$http_code error=" . ($curl_error ?: 'none') . " =====");
     curl_close($ch);
     error_log('HERMES [API]: curl done http_code=' . $http_code . ' error=' . ($curl_error ?: 'none'));
+=======
+    _hermes_log("[$req_id_log] ===== STREAM END: http=$http_code error=" . ($curl_error ?: 'none') . " =====");
+    curl_close($ch);
+    error_log('HERMES [API]: curl done http_code=' . $http_code . ' error=' . ($curl_error ?: 'none') . ' bytes=' . strlen($data));
+    _hermes_log("[$req_id] ===== curl done http_code=$http_code =====");
+    error_log("HERMES [$req_id]: curl done http_code=$http_code bytes=" . strlen($data ?? ''));
+    _hermes_log('api_stream_response: curl done, http_code=' . $http_code . ', error=' . ($curl_error ?: 'none'));
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
     
     if ($http_code !== 200) {
         echo "event: error\ndata: " . json_encode(['error' => 'Bridge error', 'code' => $http_code]) . "\n\n";
@@ -316,7 +494,11 @@ function api_bridge_status(): void {
     $bridge_port = local_hermesagent_get_bridge_port();
     $bridge_status = local_hermesagent_check_bridge_status();
     $online = ($bridge_status === 'running');
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
     send_json_response([
         'status' => $bridge_status,
         'online' => $online,

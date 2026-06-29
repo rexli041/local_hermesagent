@@ -3,7 +3,11 @@ local_hermesagent - Hermes Agent integration for Moodle
 
 Plugin name   : Hermes Agent
 Component     : local_hermesagent
+<<<<<<< HEAD
 Version       : 0.3.7 (2026062701)
+=======
+Version       : 0.3.0 (2026061304)
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
 Moodle req.   : 5.0+ (2024100700)
 License       : GNU GPL v3 or later
               : https://www.gnu.org/copyleft/gpl.html
@@ -110,12 +114,20 @@ Installation
 
   5. Bootstrap Hermes (first-time only):
 
+<<<<<<< HEAD
      Use the "Update & Bootstrap" button in the settings page.  This
      downloads a standalone Python 3.12 build (~50 MB), creates a virtual
      environment, and installs the hermes-agent package.
 
   6. The ACP Bridge auto-starts on the first chat message.  You can also
      restart it manually via the "Restart ACP" button on the settings page.
+=======
+     Click "Bootstrap Hermes" in the settings page.  This downloads a
+     standalone Python 3.12 build (~50 MB), creates a virtual environment,
+     and installs the hermes-agent package.
+
+  6. Start the ACP Bridge from the admin settings page (Start button).
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
 
 Prerequisites:
     - www-data can write to moodledata/.hermes/
@@ -228,6 +240,7 @@ Architecture overview
   api.php  -->  acp_bridge.py (FastAPI)  -->  hermes acp  -->  LLM
 
 
+<<<<<<< HEAD
 Change History
 --------------
 
@@ -251,6 +264,8 @@ Change History
   0.3.0 (2026-06-13)
     * Initial release with proxy-based architecture
 
+=======
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
 Known limitations
 -----------------
 

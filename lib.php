@@ -15,7 +15,36 @@ defined('MOODLE_INTERNAL') || die();
 function local_hermesagent_get_setting(string $name, string $default = ''): string {
     global $DB;
     $record = $DB->get_record('local_hermesagent_settings', ['name' => $name], 'value', MUST_EXIST);
+<<<<<<< HEAD
     return $record->value ?: $default;
+=======
+    return ($record && $record->value) ? $record->value : $default;
+}
+
+/**
+ * 实时动态检测 Bridge 真实存活状态，并同步写入数据库
+ */
+function local_hermesagent_check_bridge_status(): string {
+    $bridge_port = local_hermesagent_get_bridge_port();
+    
+    $ch = curl_init("http://127.0.0.1:$bridge_port/health");
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 2,
+    ]);
+    
+    $resp = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($resp !== false && $http_code === 200) {
+        local_hermesagent_set_setting('bridge_status', 'running');
+        return 'running';
+    } else {
+        local_hermesagent_set_setting('bridge_status', 'stopped');
+        return 'stopped';
+    }
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
 }
 
 /**
@@ -47,6 +76,7 @@ function local_hermesagent_get_bridge_port(): int {
 }
 
 /**
+<<<<<<< HEAD
  * Live-check the ACP bridge health and sync the DB.
  * Replaces stale DB-only reads with a real HTTP ping.
  */
@@ -73,6 +103,8 @@ function local_hermesagent_check_bridge_status(): string {
 }
 
 /**
+=======
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
  * Get all learned skills (enabled only)
  */
 function local_hermesagent_get_skills(?string $category = null, bool $enabled_only = true): array {
@@ -90,6 +122,7 @@ function local_hermesagent_get_skills(?string $category = null, bool $enabled_on
 }
 
 /**
+<<<<<<< HEAD
  * Ensure the ACP bridge is running. Starts it lazily if not.
  * Returns true if bridge is healthy after this call.
  */
@@ -154,6 +187,8 @@ function local_hermesagent_restart_bridge(int $bridge_port): bool {
 }
 
 /**
+=======
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
  * Register admin navigation — only visible to site admins
  */
 function local_hermesagent_extend_navigation_navigation(settings_navigation $nav, context_system $context) {

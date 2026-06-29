@@ -34,6 +34,7 @@ $PAGE->set_url(new moodle_url('/local/hermesagent/chat.php', [
 $PAGE->set_context(context_system::instance());
 $PAGE->set_title(get_string('pluginname', 'local_hermesagent'));
 $PAGE->set_heading(get_string('pluginname', 'local_hermesagent'));
+<<<<<<< HEAD
 $PAGE->requires->css(new moodle_url('/local/hermesagent/styles/chat.css'));
 // Load the chat AMD module (proper Moodle way)
 $PAGE->requires->js_call_amd('local_hermesagent/chat', 'init');
@@ -42,6 +43,20 @@ $PAGE->requires->js_call_amd('local_hermesagent/chat', 'init');
 
 echo $OUTPUT->header();
 
+=======
+#$PAGE->requires->css(new moodle_url('/local/hermesagent/styles/chat.css'));
+// Load the chat AMD module (proper Moodle way)
+$PAGE->requires->js_call_amd('local_hermesagent/chat', 'init');
+
+$css_file = __DIR__ . '/styles/chat.css';
+
+echo $OUTPUT->header();
+
+if (file_exists($css_file)) {
+    echo '<style>' . file_get_contents($css_file) . '</style>';
+}
+
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
 // Conversation list sidebar
 global $DB;
 $conversations = $DB->get_records('local_hermesagent_conversations', ['usermodified' => $USER->id], 'timemodified DESC');
@@ -80,7 +95,11 @@ if ($newly_created) {
     $conversations = $DB->get_records('local_hermesagent_conversations', ['usermodified' => $USER->id], 'timemodified DESC');
 }
 
+<<<<<<< HEAD
 // Get bridge status (live check)
+=======
+// Get bridge status
+>>>>>>> 87bf7077ae1e84bf48ff2e652da8505a550bde2a
 $bridge_port = local_hermesagent_get_bridge_port();
 $bridge_status = local_hermesagent_check_bridge_status();
 

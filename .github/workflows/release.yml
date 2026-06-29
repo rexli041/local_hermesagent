@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Moodle plugin ZIP
+        run: |
+          # Create a clean copy for the release
+          mkdir -p /tmp/release
+          rsync -a --exclude='.git/' --exclude='.github/' . /tmp/release/local_hermesagent/
+          
+          cd /tmp/release
+          zip -r local_hermesagent.zip local_hermesagent/
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git tag --sort=-version:refname | head -n1)
+          if [ -n "$PREV_TAG" ]; then
+            echo "### Changes since $PREV_TAG" > CHANGELOG_TMP.md
+            echo "" >> CHANGELOG_TMP.md
+            git log $PREV_TAG..HEAD --oneline --pretty=format:"- %s (%h)" >> CHANGELOG_TMP.md
+          else
+            echo "### Initial release" > CHANGELOG_TMP.md
+            echo "" >> CHANGELOG_TMP.md
+            git log --oneline --pretty=format:"- %s (%h)" >> CHANGELOG_TMP.md
+          fi
+          cat CHANGELOG_TMP.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: /tmp/release/local_hermesagent.zip
+          body_path: CHANGELOG_TMP.md
+          generate_release_notes: false
+          draft: false
+          prerelease: false
